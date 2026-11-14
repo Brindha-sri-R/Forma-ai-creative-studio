@@ -1,0 +1,17 @@
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "text": "A smooth cinematic video of ocean waves crashing on golden sand at sunset"
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "responseModalities": [
+      "VIDEO"
+    ]
+  }
+}
+
