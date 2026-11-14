@@ -169,7 +169,14 @@ export function StudioShell({
           </div>
 
           <div className="sidebar-search-box">
-            <Search size={14} strokeWidth={1.75} className="sidebar-search-icon" />
+            <span className="sidebar-search-brand" title={BRAND_CONFIG.name} aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+                <rect x="1.5" y="1.5" width="4.5" height="4.5" rx="1" fill="currentColor" />
+                <rect x="8" y="1.5" width="4.5" height="4.5" rx="1" fill="currentColor" opacity="0.55" />
+                <rect x="1.5" y="8" width="4.5" height="4.5" rx="1" fill="currentColor" opacity="0.55" />
+                <rect x="8" y="8" width="4.5" height="4.5" rx="1" fill="currentColor" />
+              </svg>
+            </span>
             <input
               type="text"
               value={searchQuery}
@@ -182,7 +189,7 @@ export function StudioShell({
               placeholder="Search..."
               aria-label="Search workspace"
             />
-            {searchQuery && (
+            {searchQuery ? (
               <button
                 type="button"
                 className="sidebar-search-clear"
@@ -191,6 +198,8 @@ export function StudioShell({
               >
                 <X size={12} strokeWidth={2} />
               </button>
+            ) : (
+              <Search size={13} strokeWidth={1.75} className="sidebar-search-icon" />
             )}
           </div>
 
