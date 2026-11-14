@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Forma — Commercial AI Creative Studio
 
 > **Transform prompts into high-resolution stills, cinematic motion, and brand assets in a unified full-stack creative suite.**
@@ -411,8 +410,3 @@ Alternatively, you can sign up with any new email or use the one-click Google/Ap
 
 ## License
 Proprietary commercial software. Designed & developed for Forma Creative Studio.
-
-=======
-# Forma
-Forma is an AI-powered creative studio for generating, managing, and organizing visual content. Built with React, TypeScript, Vite, Node.js, Express, and MongoDB, it features AI image generation, prompt enhancement, user authentication, and a personalized creative gallery. 
->>>>>>> 31bc5cd7ccbfb8b064c244d28b0fa50ad5ee1a79
