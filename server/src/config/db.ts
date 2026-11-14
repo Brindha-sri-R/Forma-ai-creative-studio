@@ -2,15 +2,26 @@ import mongoose from 'mongoose';
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { config } from './env';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dataDir = path.resolve(__dirname, '../../../data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+// Ensure data directory exists with safe fallback for serverless environments (e.g. Vercel /tmp)
+let dataDir = path.resolve(__dirname, '../../../data');
+try {
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+} catch {
+  dataDir = path.join(os.tmpdir(), 'forma-data');
+  if (!fs.existsSync(dataDir)) {
+    try {
+      fs.mkdirSync(dataDir, { recursive: true });
+    } catch {}
+  }
 }
 
 export let isMongoConnected = false;
@@ -38,7 +49,14 @@ mongoose.connection.on('error', (err) => {
 });
 
 // Resilient local storage instance for zero-config offline durability
-export const localDb = new DatabaseSync(path.join(dataDir, 'studio.db'));
+let localDbInstance: DatabaseSync;
+try {
+  localDbInstance = new DatabaseSync(path.join(dataDir, 'studio.db'));
+} catch (err) {
+  console.warn('[Database] Falling back to in-memory SQLite:', err);
+  localDbInstance = new DatabaseSync(':memory:');
+}
+export const localDb = localDbInstance;
 
 localDb.exec(`
   CREATE TABLE IF NOT EXISTS users (
