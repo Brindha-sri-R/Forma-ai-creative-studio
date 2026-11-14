@@ -12,7 +12,7 @@ node_modules/
 *.env
 
 # Local Database & Uploads
-data/
+/data/
 *.db
 uploads/
 uploads/creations/*
