@@ -139,10 +139,14 @@ localDb.exec(`
 `);
 
 export async function connectDatabase(): Promise<void> {
+  if (mongoose.connection.readyState === 1) {
+    isMongoConnected = true;
+    return;
+  }
   try {
     mongoose.set('strictQuery', false);
     await mongoose.connect(config.mongodbUri, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 8000,
       socketTimeoutMS: 45000,
       maxPoolSize: 10,
       minPoolSize: 1,
