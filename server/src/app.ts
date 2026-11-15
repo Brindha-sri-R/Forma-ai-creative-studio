@@ -22,7 +22,12 @@ app.use(
 
 // Normalize rewritten URL in serverless environments (e.g. Vercel rewrites)
 app.use((req, _res, next) => {
-  if (req.originalUrl && req.url !== req.originalUrl) {
+  if (req.url.startsWith('/api/index/')) {
+    req.url = req.url.replace('/api/index/', '/api/');
+  } else if (req.url === '/api/index') {
+    req.url = '/api';
+  }
+  if (req.originalUrl && req.url !== req.originalUrl && !req.url.startsWith('/api/')) {
     req.url = req.originalUrl;
   }
   next();
