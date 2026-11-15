@@ -35,8 +35,15 @@ async function ensureDb() {
 export default async function handler(req: any, res: any) {
   try {
     await ensureDb();
-  } catch (err) {
-    console.warn('[Vercel Handler DB Init Error]', err);
+  } catch (err: any) {
+    console.error('[Vercel Handler DB Init Error]', err);
   }
-  return app(req, res);
+  try {
+    return app(req, res);
+  } catch (err: any) {
+    console.error('[Vercel App Error]', err);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: 'Internal Server Error: ' + err.message });
+    }
+  }
 }

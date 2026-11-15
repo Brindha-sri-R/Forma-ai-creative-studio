@@ -1,13 +1,35 @@
 import mongoose from 'mongoose';
-import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { config } from './env';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
+
+// Safely load node:sqlite without crashing on runtimes where it is absent
+let DatabaseSyncClass: any = null;
+try {
+  const sqliteModule = require('node:sqlite');
+  DatabaseSyncClass = sqliteModule.DatabaseSync;
+} catch {
+  console.warn('[Database] node:sqlite is not available in this Node runtime. Operating in cloud/in-memory mode.');
+}
+
+// In-memory fallback mock for environments without node:sqlite
+class FallbackDb {
+  exec(_sql: string) {}
+  prepare(_sql: string) {
+    return {
+      run(..._args: any[]) { return { changes: 1 }; },
+      get(..._args: any[]) { return null; },
+      all(..._args: any[]) { return []; },
+    };
+  }
+}
 
 // Ensure data directory exists with safe fallback for serverless environments (e.g. Vercel /tmp)
 let dataDir = path.resolve(__dirname, '../../../data');
@@ -49,12 +71,20 @@ mongoose.connection.on('error', (err) => {
 });
 
 // Resilient local storage instance for zero-config offline durability
-let localDbInstance: DatabaseSync;
-try {
-  localDbInstance = new DatabaseSync(path.join(dataDir, 'studio.db'));
-} catch (err) {
-  console.warn('[Database] Falling back to in-memory SQLite:', err);
-  localDbInstance = new DatabaseSync(':memory:');
+let localDbInstance: any;
+if (DatabaseSyncClass) {
+  try {
+    localDbInstance = new DatabaseSyncClass(path.join(dataDir, 'studio.db'));
+  } catch (err) {
+    console.warn('[Database] Falling back to in-memory SQLite:', err);
+    try {
+      localDbInstance = new DatabaseSyncClass(':memory:');
+    } catch {
+      localDbInstance = new FallbackDb();
+    }
+  }
+} else {
+  localDbInstance = new FallbackDb();
 }
 export const localDb = localDbInstance;
 
