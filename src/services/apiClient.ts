@@ -94,11 +94,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   });
 
   if (!response.ok) {
-    let errorMessage = `Request failed (${response.status})`;
+    let errorMessage = `Request failed (${response.status} ${response.statusText || ''})`.trim();
     try {
       const errJson = await response.json();
-      if (errJson && errJson.error) {
-        errorMessage = errJson.error;
+      if (errJson && (errJson.error || errJson.message)) {
+        errorMessage = errJson.error || errJson.message;
       }
     } catch {}
     throw new ApiError(errorMessage, response.status);

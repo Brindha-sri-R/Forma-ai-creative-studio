@@ -49,8 +49,9 @@ app.get('/uploads/:folder/:filename', async (req, res, next) => {
   }
 });
 
-// Mount REST API
+// Mount REST API: support both /api prefix and root-rewritten routes
 app.use('/api', apiRouter);
+app.use(apiRouter);
 
 // 404 Fallback for unknown API routes
 app.use('/api/*', (_req, res) => {
