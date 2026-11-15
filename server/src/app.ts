@@ -20,6 +20,14 @@ app.use(
   })
 );
 
+// Normalize rewritten URL in serverless environments (e.g. Vercel rewrites)
+app.use((req, _res, next) => {
+  if (req.originalUrl && req.url !== req.originalUrl) {
+    req.url = req.originalUrl;
+  }
+  next();
+});
+
 // Body parsers
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
