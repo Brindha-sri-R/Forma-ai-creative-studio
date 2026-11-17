@@ -10,7 +10,8 @@
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run server\" \"npm run client\"",
     "server": "npx tsx server/src/server.ts",
     "client": "vite",
-    "build": "tsc && vite build",
+    "build:server": "esbuild server/src/vercel.ts --bundle --platform=node --format=esm --packages=external --outfile=api/index.js",
+    "build": "tsc && vite build && npm run build:server",
     "start": "npx tsx server/src/server.ts",
     "preview": "vite preview"
   },
