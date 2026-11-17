@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 import apiRouter from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { gridFSStorage, baseUploadDir } from './services/storage';
+import { connectDatabase } from './config/db';
+import { dbRepository } from './services/dbRepository';
+import { hashPassword } from './utils/password';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,13 +25,17 @@ app.use(
 
 // Normalize rewritten URL in serverless environments (e.g. Vercel rewrites)
 app.use((req, _res, next) => {
-  if (req.url.startsWith('/api/index/')) {
+  const matchedPath = (req.headers['x-matched-path'] || req.headers['x-vercel-matched-path']) as string | undefined;
+  if (matchedPath && (matchedPath.startsWith('/api') || matchedPath.startsWith('/uploads'))) {
+    req.url = matchedPath;
+  } else if (req.url.startsWith('/api/index/')) {
     req.url = req.url.replace('/api/index/', '/api/');
   } else if (req.url === '/api/index') {
-    req.url = '/api';
-  }
-  if (req.originalUrl && req.url !== req.originalUrl && !req.url.startsWith('/api/')) {
-    req.url = req.originalUrl;
+    if (req.originalUrl && req.originalUrl.startsWith('/api/')) {
+      req.url = req.originalUrl;
+    } else {
+      req.url = '/api';
+    }
   }
   next();
 });
@@ -41,6 +48,62 @@ app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use((req, _res, next) => {
   if (!req.body || typeof req.body !== 'object') {
     req.body = {};
+  }
+  next();
+});
+
+// Lazy DB initialization & default user seeding middleware for serverless cold-starts
+let isDbInitialized = false;
+let dbInitPromise: Promise<void> | null = null;
+
+export async function ensureDatabaseReady(): Promise<void> {
+  if (isDbInitialized) return;
+  if (!dbInitPromise) {
+    dbInitPromise = (async () => {
+      try {
+        await connectDatabase();
+        const existing = await dbRepository.users.findByEmail('creator@studio.in');
+        if (!existing) {
+          const hashedPassword = await hashPassword('password123');
+          const user = await dbRepository.users.create({
+            email: 'creator@studio.in',
+            name: 'Forma Studio Lead',
+            password: hashedPassword,
+            planId: 'free',
+            credits: 25,
+            maxCredits: 25,
+          });
+
+          await dbRepository.collections.create(user.id, 'Brand Kit');
+          await dbRepository.collections.create(user.id, 'Campaigns');
+          await dbRepository.collections.create(user.id, 'Motion Studies');
+
+          await dbRepository.usageQuota.log({
+            userId: user.id,
+            label: 'Welcome Free Plan allocation',
+            mode: 'topup',
+            delta: 25,
+            balanceAfter: 25,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          });
+          console.log('[Database] Default creator account initialized (creator@studio.in / password123)');
+        }
+        isDbInitialized = true;
+      } catch (err: any) {
+        console.warn('[Database] Cold-start initialization notice:', err.message || err);
+      } finally {
+        dbInitPromise = null;
+      }
+    })();
+  }
+  return dbInitPromise;
+}
+
+app.use(async (_req, _res, next) => {
+  try {
+    await ensureDatabaseReady();
+  } catch (err) {
+    console.warn('[Database Middleware Error]', err);
   }
   next();
 });

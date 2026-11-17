@@ -21,12 +21,58 @@ try {
 
 // In-memory fallback mock for environments without node:sqlite
 class FallbackDb {
+  private tables: Record<string, any[]> = {
+    users: [],
+    generations: [],
+    usage_quota: [],
+    collections: [],
+    media_assets: [],
+  };
+
   exec(_sql: string) {}
-  prepare(_sql: string) {
+  prepare(sql: string) {
+    const self = this;
+    const cleanSql = sql.trim();
     return {
-      run(..._args: any[]) { return { changes: 1 }; },
-      get(..._args: any[]) { return null; },
-      all(..._args: any[]) { return []; },
+      run(...args: any[]) {
+        if (/INSERT INTO users/i.test(cleanSql)) {
+          const [id, email, name, password, plan_id, credits, max_credits, reset_code, avatar_url, created_at, updated_at] = args;
+          self.tables.users.push({ id, email, name, password, plan_id, credits, max_credits, reset_code, avatar_url, created_at, updated_at });
+        } else if (/INSERT INTO collections/i.test(cleanSql)) {
+          const [id, user_id, name, created_at] = args;
+          self.tables.collections.push({ id, user_id, name, created_at });
+        } else if (/INSERT INTO usage_quota/i.test(cleanSql)) {
+          const [id, user_id, label, mode, delta, balance_after, timestamp, created_at] = args;
+          self.tables.usage_quota.push({ id, user_id, label, mode, delta, balance_after, timestamp, created_at });
+        }
+        return { changes: 1 };
+      },
+      get(...args: any[]) {
+        if (/SELECT \* FROM users WHERE email = \?/i.test(cleanSql)) {
+          const email = (args[0] || '').toString().trim().toLowerCase();
+          return self.tables.users.find((u) => u.email.toLowerCase() === email) || null;
+        }
+        if (/SELECT \* FROM users WHERE id = \?/i.test(cleanSql)) {
+          const id = args[0];
+          return self.tables.users.find((u) => u.id === id) || null;
+        }
+        if (/SELECT id FROM collections WHERE user_id = \? AND name = \?/i.test(cleanSql)) {
+          const [userId, name] = args;
+          return self.tables.collections.find((c) => c.user_id === userId && c.name === name) || null;
+        }
+        return null;
+      },
+      all(...args: any[]) {
+        if (/SELECT name FROM collections WHERE user_id = \?/i.test(cleanSql)) {
+          const userId = args[0];
+          return self.tables.collections.filter((c) => c.user_id === userId);
+        }
+        if (/SELECT \* FROM usage_quota WHERE user_id = \?/i.test(cleanSql)) {
+          const userId = args[0];
+          return self.tables.usage_quota.filter((q) => q.user_id === userId);
+        }
+        return [];
+      },
     };
   }
 }

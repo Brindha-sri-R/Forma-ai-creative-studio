@@ -37,7 +37,7 @@ export function validateLogin(req: Request, res: Response, next: NextFunction) {
 }
 
 export function validateResetPassword(req: Request, res: Response, next: NextFunction) {
-  const { email, code, newPassword } = req.body;
+  const { email, code, newPassword } = req.body || {};
 
   if (!email || typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
     return sendError(res, 'Valid email address is required', 400);
