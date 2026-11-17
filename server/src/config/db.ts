@@ -1,3 +1,7 @@
+import dns from 'node:dns';
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
 import mongoose from 'mongoose';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -78,18 +82,19 @@ class FallbackDb {
 }
 
 // Ensure data directory exists with safe fallback for serverless environments (e.g. Vercel /tmp)
-let dataDir = path.resolve(__dirname, '../../../data');
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+let dataDir = isServerless ? path.join(os.tmpdir(), 'forma-data') : path.resolve(__dirname, '../../../data');
 try {
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 } catch {
   dataDir = path.join(os.tmpdir(), 'forma-data');
-  if (!fs.existsSync(dataDir)) {
-    try {
+  try {
+    if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
-    } catch {}
-  }
+    }
+  } catch {}
 }
 
 export let isMongoConnected = false;
@@ -134,7 +139,8 @@ if (DatabaseSyncClass) {
 }
 export const localDb = localDbInstance;
 
-localDb.exec(`
+try {
+  localDb.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -213,6 +219,9 @@ localDb.exec(`
     created_at TEXT NOT NULL
   );
 `);
+} catch (err: any) {
+  console.warn('[Database] Local schema setup notice:', err.message || err);
+}
 
 export async function connectDatabase(): Promise<void> {
   if (mongoose.connection.readyState === 1) {
@@ -222,8 +231,8 @@ export async function connectDatabase(): Promise<void> {
   try {
     mongoose.set('strictQuery', false);
     await mongoose.connect(config.mongodbUri, {
-      serverSelectionTimeoutMS: 8000,
-      socketTimeoutMS: 45000,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 30000,
       maxPoolSize: 10,
       minPoolSize: 1,
       heartbeatFrequencyMS: 10000,
