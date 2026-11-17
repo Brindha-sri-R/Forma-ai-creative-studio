@@ -13,3 +13,4 @@ export const storageService: IStorageService =
 
 export * from './IStorageService';
 export { GridFSStorageService } from './GridFSStorageService';
+export { baseUploadDir } from './LocalStorageService';

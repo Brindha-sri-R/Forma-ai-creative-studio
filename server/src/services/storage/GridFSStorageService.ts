@@ -5,11 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
 import type { IStorageService, UploadResult } from './IStorageService';
-import { LocalStorageService } from './LocalStorageService';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const baseUploadDir = path.resolve(__dirname, '../../../../uploads');
+import { LocalStorageService, baseUploadDir } from './LocalStorageService';
 
 function getMimeType(filename: string): string {
   const ext = path.extname(filename).toLowerCase();

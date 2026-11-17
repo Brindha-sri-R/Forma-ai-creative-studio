@@ -1,11 +1,41 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import type { IStorageService, UploadResult } from './IStorageService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const baseUploadDir = path.resolve(__dirname, '../../../../uploads');
+
+function resolveUploadDir(): string {
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+  if (isServerless) {
+    const tmpDir = path.join(os.tmpdir(), 'forma-uploads');
+    try {
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
+    } catch {}
+    return tmpDir;
+  }
+  const defaultDir = path.resolve(__dirname, '../../../../uploads');
+  try {
+    if (!fs.existsSync(defaultDir)) {
+      fs.mkdirSync(defaultDir, { recursive: true });
+    }
+    return defaultDir;
+  } catch {
+    const tmpDir = path.join(os.tmpdir(), 'forma-uploads');
+    try {
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
+    } catch {}
+    return tmpDir;
+  }
+}
+
+export const baseUploadDir = resolveUploadDir();
 
 export class LocalStorageService implements IStorageService {
   constructor() {
@@ -15,8 +45,12 @@ export class LocalStorageService implements IStorageService {
   }
 
   private ensureDirectory(dirPath: string) {
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
+    try {
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+    } catch (err) {
+      console.warn(`[Storage] Cannot create directory ${dirPath}:`, err);
     }
   }
 

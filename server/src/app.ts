@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import apiRouter from './routes';
 import { errorHandler } from './middleware/errorHandler';
-import { gridFSStorage } from './services/storage';
+import { gridFSStorage, baseUploadDir } from './services/storage';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,9 +49,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Static assets: serve uploaded files & generated media from local disk cache
-const uploadsDir = path.resolve(__dirname, '../../uploads');
-app.use('/uploads', express.static(uploadsDir));
+// Static assets: serve uploaded files & generated media from disk cache
+app.use('/uploads', express.static(baseUploadDir));
 
 // Fallback: If not found on local disk, stream from MongoDB Atlas GridFS persistent storage
 app.get('/uploads/:folder/:filename', async (req, res, next) => {
