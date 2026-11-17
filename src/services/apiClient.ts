@@ -147,10 +147,10 @@ export const api = {
       return res.user;
     },
 
-    async oauth(provider: 'google' | 'apple') {
+    async oauth(provider: 'google' | 'apple', email?: string, name?: string) {
       const res = await request<{ message: string; token: string; user: AuthUser }>('/api/auth/oauth-mock', {
         method: 'POST',
-        body: JSON.stringify({ provider }),
+        body: JSON.stringify({ provider, email, name }),
       });
       setStoredToken(res.token);
       setStoredUser(res.user);

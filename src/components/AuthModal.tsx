@@ -301,9 +301,22 @@ export function AuthModal({
   const handleOAuth = async (provider: 'google' | 'apple') => {
     if (socialBusy || formBusy) return;
     setErrors({});
+
+    let targetEmail = email.trim();
+    if (!targetEmail || !EMAIL_REGEX.test(targetEmail)) {
+      const promptEmail = window.prompt(`Enter your ${provider === 'google' ? 'Google' : 'Apple'} email address:`, email.trim());
+      if (!promptEmail) return;
+      if (!EMAIL_REGEX.test(promptEmail.trim())) {
+        setErrors({ general: 'Please enter a valid email address.' });
+        return;
+      }
+      targetEmail = promptEmail.trim();
+      setEmail(targetEmail);
+    }
+
     setSocialBusy(provider);
     try {
-      const res = await api.auth.oauth(provider);
+      const res = await api.auth.oauth(provider, targetEmail);
       setSocialBusy(null);
       onSignIn(res.user.email);
     } catch (err: any) {

@@ -1375,16 +1375,16 @@ var authController = {
   },
   async oauthMock(req, res) {
     try {
-      const { provider } = req.body;
+      const { provider, email: customEmail, name: customName } = req.body || {};
       const isGoogle = provider === "google";
-      const email = isGoogle ? "creator@gmail.com" : "creator@icloud.com";
-      const name = isGoogle ? "Google Creator" : "Apple Creator";
-      let user = await dbRepository.users.findByEmail(email);
+      const cleanEmail = customEmail && typeof customEmail === "string" && customEmail.trim() ? customEmail.trim().toLowerCase() : isGoogle ? "creator@gmail.com" : "creator@icloud.com";
+      const cleanName = customName && typeof customName === "string" && customName.trim() ? customName.trim() : cleanEmail.split("@")[0] || (isGoogle ? "Google Creator" : "Apple Creator");
+      let user = await dbRepository.users.findByEmail(cleanEmail);
       if (!user) {
         const hashedPassword = await hashPassword("oauth-demo-password");
         user = await dbRepository.users.create({
-          email,
-          name,
+          email: cleanEmail,
+          name: cleanName,
           password: hashedPassword,
           planId: "free",
           credits: 25,
