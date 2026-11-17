@@ -17,6 +17,9 @@ export interface IMediaAsset extends Document {
 
 const MediaAssetSchema = new Schema<IMediaAsset>(
   {
+    _id: {
+      type: String,
+    },
     userId: {
       type: String,
       required: true,

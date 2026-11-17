@@ -37,6 +37,14 @@ app.use((req, _res, next) => {
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
+// Ensure req.body is always defined in serverless environments
+app.use((req, _res, next) => {
+  if (!req.body || typeof req.body !== 'object') {
+    req.body = {};
+  }
+  next();
+});
+
 // Request Logging Middleware
 app.use((req, res, next) => {
   const start = Date.now();

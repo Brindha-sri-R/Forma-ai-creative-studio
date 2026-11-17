@@ -7,7 +7,7 @@ import { sendSuccess, sendError } from '../utils/response';
 export const authController = {
   async register(req: Request, res: Response) {
     try {
-      const { email, password, name, fullName } = req.body;
+      const { email, password, name, fullName } = req.body || {};
       const targetName = (name || fullName || '').trim() || email.split('@')[0];
 
       const existing = await dbRepository.users.findByEmail(email);
@@ -65,7 +65,7 @@ export const authController = {
 
   async login(req: Request, res: Response) {
     try {
-      const { email, password } = req.body;
+      const { email, password } = req.body || {};
 
       const user = await dbRepository.users.findByEmail(email);
       if (!user || !user.password) {

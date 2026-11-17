@@ -9,6 +9,9 @@ export interface ICollection extends Document {
 
 const CollectionSchema = new Schema<ICollection>(
   {
+    _id: {
+      type: String,
+    },
     userId: {
       type: String,
       required: true,

@@ -4,7 +4,7 @@ import { sendError } from '../utils/response';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function validateRegister(req: Request, res: Response, next: NextFunction) {
-  const { email, password, name, fullName } = req.body;
+  const { email, password, name, fullName } = req.body || {};
   const targetName = name || fullName;
 
   if (!email || typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
@@ -23,7 +23,7 @@ export function validateRegister(req: Request, res: Response, next: NextFunction
 }
 
 export function validateLogin(req: Request, res: Response, next: NextFunction) {
-  const { email, password } = req.body;
+  const { email, password } = req.body || {};
 
   if (!email || typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
     return sendError(res, 'Valid email address is required', 400);

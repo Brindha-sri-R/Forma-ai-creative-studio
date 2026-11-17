@@ -96,9 +96,21 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   if (!response.ok) {
     let errorMessage = `Request failed (${response.status} ${response.statusText || ''})`.trim();
     try {
-      const errJson = await response.json();
-      if (errJson && (errJson.error || errJson.message)) {
-        errorMessage = errJson.error || errJson.message;
+      const rawText = await response.text();
+      try {
+        const errJson = JSON.parse(rawText);
+        if (errJson && (errJson.error || errJson.message)) {
+          errorMessage = errJson.error || errJson.message;
+        }
+      } catch {
+        if (rawText) {
+          const titleMatch = rawText.match(/<title>(.*?)<\/title>/i);
+          const bodyMatch = rawText.match(/<pre>(.*?)<\/pre>/i) || rawText.match(/<body>(.*?)<\/body>/i);
+          const extracted = (titleMatch?.[1] || bodyMatch?.[1] || rawText).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          if (extracted) {
+            errorMessage = `${errorMessage}: ${extracted.slice(0, 160)}`;
+          }
+        }
       }
     } catch {}
     throw new ApiError(errorMessage, response.status);

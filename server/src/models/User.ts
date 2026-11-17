@@ -16,6 +16,9 @@ export interface IUser extends Document {
 
 const UserSchema = new Schema<IUser>(
   {
+    _id: {
+      type: String,
+    },
     email: {
       type: String,
       required: true,
