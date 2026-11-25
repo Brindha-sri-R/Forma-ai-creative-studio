@@ -16,6 +16,7 @@ export const config = {
   mongodbUri: process.env.MONGODB_URI || FALLBACK_MONGODB_URI,
   jwtSecret: process.env.JWT_SECRET || 'forma-enterprise-secret-key-2026-production',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  googleClientId: process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '107987269248-0e2g2qvqafpm8ojipicm1aretoumsodt.apps.googleusercontent.com',
   storageProvider: (process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'production' ? 'gridfs' : 'local')) as 'gridfs' | 'local' | 'cloudinary' | 's3',
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',

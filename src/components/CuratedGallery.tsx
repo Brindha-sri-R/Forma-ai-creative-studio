@@ -84,8 +84,22 @@ export function CuratedGallery({
 
         {isSettling ? (
           <GalleryGridSkeleton count={visibleSlots.length || 6} aspectClass="ratio-4-5" />
+        ) : visibleSlots.length === 0 ? (
+          <div className="studio-card empty-state-card" style={{ padding: '36px 20px', textAlign: 'center' }}>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--ink-muted)' }}>
+              No creations found in this category.
+            </p>
+            <button
+              type="button"
+              className="btn-pill btn-pill-sm btn-secondary"
+              style={{ marginTop: 14 }}
+              onClick={() => setFilter('all')}
+            >
+              Show All Creations
+            </button>
+          </div>
         ) : (
-        <div className="gallery-grid">
+          <div className="gallery-grid">
           {visibleSlots.map((slot) => (
             <article key={slot.id} className="gallery-card">
               <MediaFrame

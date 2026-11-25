@@ -14,6 +14,7 @@ router.get('/me', requireAuth, authController.getMe);
 router.patch('/profile', requireAuth, authController.updateProfile);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', validateResetPassword, authController.resetPassword);
+router.post('/google', authController.googleAuth);
 router.post('/oauth-mock', authController.oauthMock);
 
 export default router;

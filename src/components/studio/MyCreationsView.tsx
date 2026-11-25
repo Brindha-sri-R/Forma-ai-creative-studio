@@ -16,6 +16,7 @@ import { GalleryGridSkeleton, ProgressiveImage, useSkeletonTransition } from '..
 
 interface MyCreationsViewProps {
   creations: CreationItem[];
+  isLoading?: boolean;
   customCollections?: string[];
   activeCollectionFilter?: string | null;
   onStartCreate: () => void;
@@ -40,6 +41,7 @@ const COLLECTION_PRESETS = ['Brand Kit', 'Campaigns', 'Motion Studies', 'Editori
 
 export function MyCreationsView({
   creations,
+  isLoading = false,
   customCollections = [],
   activeCollectionFilter = null,
   onStartCreate,
@@ -63,10 +65,11 @@ export function MyCreationsView({
   );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
-  const isFilterLoading = useSkeletonTransition(
+  const transitionLoading = useSkeletonTransition(
     `${filter}:${selectedCollection}:${activeCollectionFilter ?? ''}`,
     360
   );
+  const isViewLoading = Boolean(isLoading || transitionLoading);
 
   const handleFilterChange = (next: CreationsFilter) => {
     if (next === filter) return;
@@ -160,20 +163,20 @@ export function MyCreationsView({
         </div>
       )}
 
-      {isFilterLoading ? (
+      {isViewLoading ? (
         <GalleryGridSkeleton count={6} />
       ) : creations.length === 0 ? (
         <div className="studio-card empty-state-card">
           <div className="frame-empty-icon" style={{ width: 42, height: 42, margin: '0 auto 14px' }}>
             <Layers size={18} strokeWidth={1.75} />
           </div>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Nothing Here Yet.</h3>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>No creations yet</h3>
           <p className="section-subtitle" style={{ margin: '6px auto 20px', textAlign: 'center' }}>
-            Your next great creation starts with an idea.
+            Start creating to build your personal library of images and video motion.
           </p>
           <button type="button" className="btn-pill btn-primary" onClick={onStartCreate}>
             <Plus size={15} strokeWidth={1.85} />
-            <span>Create Your First Asset</span>
+            <span>Create First Asset</span>
           </button>
         </div>
       ) : visibleCreations.length === 0 ? (

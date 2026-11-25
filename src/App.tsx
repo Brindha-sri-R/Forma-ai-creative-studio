@@ -57,6 +57,7 @@ export function App() {
   const [usageHistory, setUsageHistory] = useState<CreditUsageEntry[]>([]);
 
   const [creations, setCreations] = useState<CreationItem[]>([]);
+  const [isCreationsLoading, setIsCreationsLoading] = useState(false);
   const [workspaceSearch, setWorkspaceSearch] = useState('');
   const [folders, setFolders] = useState<string[]>(['Brand Kit', 'Campaigns']);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
@@ -104,10 +105,12 @@ export function App() {
   useEffect(() => {
     if (!isSignedIn) return;
 
+    setIsCreationsLoading(true);
     api.creations
       .list()
       .then((items) => setCreations(items))
-      .catch((err) => console.warn('Failed to load creations:', err));
+      .catch((err) => console.warn('Failed to load creations:', err))
+      .finally(() => setIsCreationsLoading(false));
 
     api.collections
       .list()
@@ -605,6 +608,7 @@ export function App() {
             <StudioDashboard
               credits={credits}
               creations={creations}
+              isLoading={isCreationsLoading}
               searchQuery={workspaceSearch}
               onStartMode={enterStudioWithMode}
               onLaunchStarter={handleLaunchStarter}
@@ -633,6 +637,7 @@ export function App() {
             <MyCreationsView
               key={activeFolder ?? 'archive'}
               creations={creations}
+              isLoading={isCreationsLoading}
               customCollections={folders}
               activeCollectionFilter={activeFolder}
               onStartCreate={() => enterStudio('create')}

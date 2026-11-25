@@ -34,6 +34,7 @@ var config = {
   mongodbUri: process.env.MONGODB_URI || FALLBACK_MONGODB_URI,
   jwtSecret: process.env.JWT_SECRET || "forma-enterprise-secret-key-2026-production",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
+  googleClientId: process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "107987269248-0e2g2qvqafpm8ojipicm1aretoumsodt.apps.googleusercontent.com",
   storageProvider: process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === "production" ? "gridfs" : "local"),
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
@@ -1262,13 +1263,14 @@ var authController = {
   async login(req, res) {
     try {
       const { email, password } = req.body || {};
-      const user = await dbRepository.users.findByEmail(email);
+      const cleanEmail = (email || "").toString().trim().toLowerCase();
+      const user = await dbRepository.users.findByEmail(cleanEmail);
       if (!user || !user.password) {
-        return sendError(res, "No account found with this email", 401);
+        return sendError(res, "Invalid email or password. Please verify your credentials.", 401);
       }
       const isMatch = await comparePassword(password, user.password);
       if (!isMatch) {
-        return sendError(res, "Incorrect password", 401);
+        return sendError(res, "Invalid email or password. Please verify your credentials.", 401);
       }
       const token = signToken({ userId: user.id, email: user.email });
       return sendSuccess(
@@ -1375,16 +1377,16 @@ var authController = {
   },
   async oauthMock(req, res) {
     try {
-      const { provider, email: customEmail, name: customName } = req.body || {};
+      const { provider } = req.body;
       const isGoogle = provider === "google";
-      const cleanEmail = customEmail && typeof customEmail === "string" && customEmail.trim() ? customEmail.trim().toLowerCase() : isGoogle ? "creator@gmail.com" : "creator@icloud.com";
-      const cleanName = customName && typeof customName === "string" && customName.trim() ? customName.trim() : cleanEmail.split("@")[0] || (isGoogle ? "Google Creator" : "Apple Creator");
-      let user = await dbRepository.users.findByEmail(cleanEmail);
+      const email = isGoogle ? "creator@gmail.com" : "creator@icloud.com";
+      const name = isGoogle ? "Google Creator" : "Apple Creator";
+      let user = await dbRepository.users.findByEmail(email);
       if (!user) {
         const hashedPassword = await hashPassword("oauth-demo-password");
         user = await dbRepository.users.create({
-          email: cleanEmail,
-          name: cleanName,
+          email,
+          name,
           password: hashedPassword,
           planId: "free",
           credits: 25,
@@ -1421,6 +1423,96 @@ var authController = {
       console.error("[AuthController.oauthMock]", error);
       return sendError(res, "OAuth failed: " + error.message, 500);
     }
+  },
+  async googleAuth(req, res) {
+    try {
+      const { credential, accessToken } = req.body || {};
+      let googleUser = null;
+      if (credential) {
+        const tokenRes = await fetch(
+          `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`
+        );
+        if (!tokenRes.ok) {
+          const errData = await tokenRes.json().catch(() => ({}));
+          return sendError(res, errData.error_description || "Invalid Google credential token", 401);
+        }
+        const data = await tokenRes.json();
+        if (!data.email) {
+          return sendError(res, "Google account did not provide an email", 400);
+        }
+        googleUser = {
+          email: data.email.toLowerCase().trim(),
+          name: data.name || data.given_name || data.email.split("@")[0],
+          picture: data.picture || ""
+        };
+      } else if (accessToken) {
+        const userRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!userRes.ok) {
+          return sendError(res, "Failed to fetch user profile from Google", 401);
+        }
+        const data = await userRes.json();
+        if (!data.email) {
+          return sendError(res, "Google account did not provide an email", 400);
+        }
+        googleUser = {
+          email: data.email.toLowerCase().trim(),
+          name: data.name || data.given_name || data.email.split("@")[0],
+          picture: data.picture || ""
+        };
+      } else {
+        return sendError(res, "Missing Google credential or access token", 400);
+      }
+      const { email, name, picture } = googleUser;
+      let user = await dbRepository.users.findByEmail(email);
+      if (!user) {
+        const randomPassword = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+        const hashedPassword = await hashPassword(randomPassword);
+        user = await dbRepository.users.create({
+          email,
+          name,
+          password: hashedPassword,
+          planId: "free",
+          credits: 25,
+          maxCredits: 25,
+          avatarUrl: picture || ""
+        });
+        await dbRepository.collections.create(user.id, "Brand Kit");
+        await dbRepository.collections.create(user.id, "Campaigns");
+        await dbRepository.collections.create(user.id, "Motion Studies");
+        await dbRepository.usageQuota.log({
+          userId: user.id,
+          label: "Google Sign-in Starter Allocation",
+          mode: "topup",
+          delta: 25,
+          balanceAfter: 25,
+          timestamp: (/* @__PURE__ */ new Date()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        });
+      } else if (picture && !user.avatarUrl) {
+        await dbRepository.users.update(user.id, { avatarUrl: picture });
+      }
+      const token = signToken({ userId: user.id, email: user.email });
+      return sendSuccess(
+        res,
+        {
+          token,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            planId: user.planId,
+            credits: user.credits,
+            maxCredits: user.maxCredits,
+            avatarUrl: user.avatarUrl || picture || ""
+          }
+        },
+        "Authenticated with Google successfully"
+      );
+    } catch (error) {
+      console.error("[AuthController.googleAuth]", error);
+      return sendError(res, "Google authentication failed: " + error.message, 500);
+    }
   }
 };
 
@@ -1428,35 +1520,51 @@ var authController = {
 var EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function validateRegister(req, res, next) {
   const { email, password, name, fullName } = req.body || {};
-  const targetName = name || fullName;
-  if (!email || typeof email !== "string" || !EMAIL_REGEX.test(email.trim())) {
-    return sendError(res, "Valid email address is required", 400);
+  const targetName = (name || fullName || "").toString().trim();
+  const trimmedEmail = (email || "").toString().trim();
+  if (!trimmedEmail) {
+    return sendError(res, "Please enter your email address", 400);
   }
-  if (!password || typeof password !== "string" || password.length < 6) {
+  if (!EMAIL_REGEX.test(trimmedEmail)) {
+    return sendError(res, "Please enter a valid email address (e.g. name@studio.in)", 400);
+  }
+  if (!password || typeof password !== "string") {
+    return sendError(res, "Password is required", 400);
+  }
+  if (password.length < 6) {
     return sendError(res, "Password must be at least 6 characters", 400);
   }
-  if (targetName && typeof targetName === "string" && targetName.trim().length < 2) {
-    return sendError(res, "Name must be at least 2 characters", 400);
+  if (targetName && targetName.length < 2) {
+    return sendError(res, "Please enter at least 2 characters for your name", 400);
   }
   next();
 }
 function validateLogin(req, res, next) {
   const { email, password } = req.body || {};
-  if (!email || typeof email !== "string" || !EMAIL_REGEX.test(email.trim())) {
-    return sendError(res, "Valid email address is required", 400);
+  const trimmedEmail = (email || "").toString().trim();
+  if (!trimmedEmail) {
+    return sendError(res, "Please enter your email address", 400);
   }
-  if (!password || typeof password !== "string") {
+  if (!EMAIL_REGEX.test(trimmedEmail)) {
+    return sendError(res, "Please enter a valid email address", 400);
+  }
+  if (!password || typeof password !== "string" || !password.trim()) {
     return sendError(res, "Password is required", 400);
   }
   next();
 }
 function validateResetPassword(req, res, next) {
   const { email, code, newPassword } = req.body || {};
-  if (!email || typeof email !== "string" || !EMAIL_REGEX.test(email.trim())) {
-    return sendError(res, "Valid email address is required", 400);
+  const trimmedEmail = (email || "").toString().trim();
+  const trimmedCode = (code || "").toString().trim();
+  if (!trimmedEmail) {
+    return sendError(res, "Please enter your email address", 400);
   }
-  if (!code || typeof code !== "string" || code.trim().length < 4) {
-    return sendError(res, "Valid verification code is required", 400);
+  if (!EMAIL_REGEX.test(trimmedEmail)) {
+    return sendError(res, "Please enter a valid email address", 400);
+  }
+  if (!trimmedCode || trimmedCode.length < 4) {
+    return sendError(res, "Please enter the verification code", 400);
   }
   if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
     return sendError(res, "New password must be at least 6 characters", 400);
@@ -1499,6 +1607,7 @@ router.get("/me", requireAuth, authController.getMe);
 router.patch("/profile", requireAuth, authController.updateProfile);
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password", validateResetPassword, authController.resetPassword);
+router.post("/google", authController.googleAuth);
 router.post("/oauth-mock", authController.oauthMock);
 var authRoutes_default = router;
 

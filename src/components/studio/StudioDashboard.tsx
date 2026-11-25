@@ -118,6 +118,7 @@ const WORKSPACE_STARTERS: WorkspaceTemplateSeed[] = [
 interface StudioDashboardProps {
   credits: number;
   creations: CreationItem[];
+  isLoading?: boolean;
   searchQuery: string;
   onStartMode: (mode: GenerationMode) => void;
   onLaunchStarter: (starter: WorkspaceTemplateSeed) => void;
@@ -125,7 +126,9 @@ interface StudioDashboardProps {
 }
 
 export function StudioDashboard({
+  credits,
   creations,
+  isLoading = false,
   searchQuery,
   onStartMode,
   onLaunchStarter,
@@ -133,10 +136,11 @@ export function StudioDashboard({
 }: StudioDashboardProps) {
   const [formatFilter, setFormatFilter] = useState<'all' | GenerationMode>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'alpha'>('recent');
-  const isGridLoading = useSkeletonTransition(
+  const transitionLoading = useSkeletonTransition(
     `${formatFilter}:${sortBy}:${searchQuery.trim().toLowerCase()}`,
     360
   );
+  const isGridLoading = Boolean(isLoading || transitionLoading);
 
   const handleFormatChange = (next: 'all' | GenerationMode) => {
     if (next === formatFilter) return;
@@ -233,9 +237,9 @@ export function StudioDashboard({
           <div className="frame-empty-icon" style={{ width: 40, height: 40, margin: '0 auto 12px' }}>
             <ImageIcon size={17} strokeWidth={1.75} />
           </div>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>No matching projects</h2>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>No creations found</h2>
           <p className="section-subtitle" style={{ margin: '6px auto 18px', textAlign: 'center' }}>
-            Try another keyword or start a fresh image or video generation.
+            Try another keyword or start a fresh creation.
           </p>
           <button
             type="button"

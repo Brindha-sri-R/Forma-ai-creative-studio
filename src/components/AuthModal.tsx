@@ -89,6 +89,7 @@ export function AuthModal({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [codeResent, setCodeResent] = useState(false);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -171,7 +172,7 @@ export function AuthModal({
     const trimmedEmail = email.trim();
 
     if (view === 'signup' && fullName.trim().length < 2) {
-      nextErrors.fullName = 'Please enter your name or studio name.';
+      nextErrors.fullName = 'Please enter your full name (at least 2 characters).';
     }
     if (!trimmedEmail) {
       nextErrors.email = 'Email address is required.';
@@ -183,7 +184,7 @@ export function AuthModal({
     } else if (view === 'signup' && password.length < 6) {
       nextErrors.password = 'Password must be at least 6 characters.';
     } else if (view === 'signin' && password.length < 4) {
-      nextErrors.password = 'Enter at least 4 characters for your password.';
+      nextErrors.password = 'Password must be at least 4 characters.';
     }
 
     if (Object.keys(nextErrors).length > 0) {
@@ -258,8 +259,8 @@ export function AuthModal({
 
     if (!trimmedCode) {
       nextErrors.resetCode = 'Enter the 6-digit verification code.';
-    } else if (trimmedCode !== DEMO_RESET_CODE) {
-      nextErrors.resetCode = `Verification code does not match. Use ${DEMO_RESET_CODE}.`;
+    } else if (trimmedCode.length < 6) {
+      nextErrors.resetCode = 'Verification code must be 6 digits.';
     }
 
     if (!newPassword) {
@@ -301,22 +302,58 @@ export function AuthModal({
   const handleOAuth = async (provider: 'google' | 'apple') => {
     if (socialBusy || formBusy) return;
     setErrors({});
+    setSocialBusy(provider);
 
-    let targetEmail = email.trim();
-    if (!targetEmail || !EMAIL_REGEX.test(targetEmail)) {
-      const promptEmail = window.prompt(`Enter your ${provider === 'google' ? 'Google' : 'Apple'} email address:`, email.trim());
-      if (!promptEmail) return;
-      if (!EMAIL_REGEX.test(promptEmail.trim())) {
-        setErrors({ general: 'Please enter a valid email address.' });
-        return;
+    if (provider === 'google') {
+      const clientId =
+        (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
+        '107987269248-0e2g2qvqafpm8ojipicm1aretoumsodt.apps.googleusercontent.com';
+
+      if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
+        try {
+          const client = (window as any).google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: 'email profile openid',
+            callback: async (tokenResponse: any) => {
+              if (tokenResponse?.error) {
+                setSocialBusy(null);
+                setErrors({
+                  general:
+                    tokenResponse.error === 'access_denied'
+                      ? 'Google sign-in was canceled.'
+                      : `Google sign-in failed (${tokenResponse.error}).`,
+                });
+                return;
+              }
+              if (tokenResponse?.access_token) {
+                try {
+                  const res = await api.auth.googleAuth({ accessToken: tokenResponse.access_token });
+                  setSocialBusy(null);
+                  onSignIn(res.user.email);
+                } catch (err: any) {
+                  setSocialBusy(null);
+                  setErrors({ general: err.message || 'Failed to authenticate with Google' });
+                }
+              } else {
+                setSocialBusy(null);
+                setErrors({ general: 'No access token received from Google' });
+              }
+            },
+            error_callback: () => {
+              setSocialBusy(null);
+              setErrors({ general: 'Google sign-in popup was blocked or closed.' });
+            },
+          });
+          client.requestAccessToken();
+          return;
+        } catch (err: any) {
+          console.warn('[Google GIS] Token client error, falling back:', err);
+        }
       }
-      targetEmail = promptEmail.trim();
-      setEmail(targetEmail);
     }
 
-    setSocialBusy(provider);
     try {
-      const res = await api.auth.oauth(provider, targetEmail);
+      const res = await api.auth.oauth(provider);
       setSocialBusy(null);
       onSignIn(res.user.email);
     } catch (err: any) {
@@ -501,6 +538,7 @@ export function AuthModal({
                           id="auth-name"
                           type="text"
                           value={fullName}
+                          disabled={Boolean(socialBusy || formBusy)}
                           onChange={(event) => {
                             setFullName(event.target.value);
                             clearFieldError('fullName');
@@ -528,6 +566,7 @@ export function AuthModal({
                         id="auth-email"
                         type="email"
                         value={email}
+                        disabled={Boolean(socialBusy || formBusy)}
                         onChange={(event) => {
                           setEmail(event.target.value);
                           clearFieldError('email');
@@ -553,6 +592,7 @@ export function AuthModal({
                         <button
                           type="button"
                           className="auth-forgot-btn"
+                          disabled={Boolean(socialBusy || formBusy)}
                           onClick={openForgotPassword}
                         >
                           Forgot password?
@@ -566,6 +606,7 @@ export function AuthModal({
                         id="auth-password"
                         type={showPassword ? 'text' : 'password'}
                         value={password}
+                        disabled={Boolean(socialBusy || formBusy)}
                         onChange={(event) => {
                           setPassword(event.target.value);
                           clearFieldError('password');
@@ -578,6 +619,7 @@ export function AuthModal({
                       <button
                         type="button"
                         className="auth-eye-btn"
+                        disabled={Boolean(socialBusy || formBusy)}
                         onClick={() => setShowPassword((prev) => !prev)}
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
@@ -600,7 +642,13 @@ export function AuthModal({
                     type="submit"
                     className="btn-pill btn-cobalt"
                     style={{ width: '100%', height: 44, marginTop: 4 }}
-                    disabled={Boolean(socialBusy || formBusy)}
+                    disabled={Boolean(
+                      socialBusy ||
+                        formBusy ||
+                        !email.trim() ||
+                        !password ||
+                        (view === 'signup' && fullName.trim().length < 2)
+                    )}
                   >
                     {formBusy === 'auth' ? (
                       <>
@@ -609,7 +657,7 @@ export function AuthModal({
                       </>
                     ) : (
                       <>
-                        <span>{view === 'signin' ? 'Sign in' : 'Create Studio Account'}</span>
+                        <span>{view === 'signin' ? 'Sign In' : 'Create Account'}</span>
                         <ArrowRight size={15} strokeWidth={1.85} />
                       </>
                     )}
@@ -683,6 +731,7 @@ export function AuthModal({
                         id="reset-email"
                         type="email"
                         value={resetEmail}
+                        disabled={Boolean(formBusy)}
                         onChange={(event) => {
                           setResetEmail(event.target.value);
                           clearFieldError('resetEmail');
@@ -703,7 +752,7 @@ export function AuthModal({
                     type="submit"
                     className="btn-pill btn-cobalt"
                     style={{ width: '100%', height: 44, marginTop: 4 }}
-                    disabled={Boolean(formBusy)}
+                    disabled={Boolean(formBusy || !resetEmail.trim())}
                   >
                     {formBusy === 'reset-send' ? (
                       <>
@@ -844,8 +893,9 @@ export function AuthModal({
                       <Lock size={16} strokeWidth={1.75} className="auth-field-icon" />
                       <input
                         id="reset-confirm-password"
-                        type={showNewPassword ? 'text' : 'password'}
+                        type={showConfirmPassword ? 'text' : 'password'}
                         value={confirmPassword}
+                        disabled={Boolean(formBusy)}
                         onChange={(event) => {
                           setConfirmPassword(event.target.value);
                           clearFieldError('confirmPassword');
@@ -853,6 +903,19 @@ export function AuthModal({
                         placeholder="Re-enter new password"
                         autoComplete="new-password"
                       />
+                      <button
+                        type="button"
+                        className="auth-eye-btn"
+                        disabled={Boolean(formBusy)}
+                        onClick={() => setShowConfirmPassword((prev) => !prev)}
+                        aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff size={15} strokeWidth={1.75} />
+                        ) : (
+                          <Eye size={15} strokeWidth={1.75} />
+                        )}
+                      </button>
                     </div>
                     {errors.confirmPassword && (
                       <span className="auth-field-error">
@@ -866,7 +929,14 @@ export function AuthModal({
                     type="submit"
                     className="btn-pill btn-cobalt"
                     style={{ width: '100%', height: 44, marginTop: 4 }}
-                    disabled={Boolean(formBusy)}
+                    disabled={Boolean(
+                      formBusy ||
+                        !resetCode.trim() ||
+                        !newPassword ||
+                        !confirmPassword ||
+                        newPassword.length < 6 ||
+                        newPassword !== confirmPassword
+                    )}
                   >
                     {formBusy === 'reset-update' ? (
                       <>

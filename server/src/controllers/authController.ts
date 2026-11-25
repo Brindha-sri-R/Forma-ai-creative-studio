@@ -66,15 +66,16 @@ export const authController = {
   async login(req: Request, res: Response) {
     try {
       const { email, password } = req.body || {};
+      const cleanEmail = (email || '').toString().trim().toLowerCase();
 
-      const user = await dbRepository.users.findByEmail(email);
+      const user = await dbRepository.users.findByEmail(cleanEmail);
       if (!user || !user.password) {
-        return sendError(res, 'No account found with this email', 401);
+        return sendError(res, 'Invalid email or password. Please verify your credentials.', 401);
       }
 
       const isMatch = await comparePassword(password, user.password);
       if (!isMatch) {
-        return sendError(res, 'Incorrect password', 401);
+        return sendError(res, 'Invalid email or password. Please verify your credentials.', 401);
       }
 
       const token = signToken({ userId: user.id, email: user.email });
@@ -200,21 +201,17 @@ export const authController = {
 
   async oauthMock(req: Request, res: Response) {
     try {
-      const { provider, email: customEmail, name: customName } = req.body || {};
+      const { provider } = req.body;
       const isGoogle = provider === 'google';
-      const cleanEmail = (customEmail && typeof customEmail === 'string' && customEmail.trim())
-        ? customEmail.trim().toLowerCase()
-        : (isGoogle ? 'creator@gmail.com' : 'creator@icloud.com');
-      const cleanName = (customName && typeof customName === 'string' && customName.trim())
-        ? customName.trim()
-        : (cleanEmail.split('@')[0] || (isGoogle ? 'Google Creator' : 'Apple Creator'));
+      const email = isGoogle ? 'creator@gmail.com' : 'creator@icloud.com';
+      const name = isGoogle ? 'Google Creator' : 'Apple Creator';
 
-      let user = await dbRepository.users.findByEmail(cleanEmail);
+      let user = await dbRepository.users.findByEmail(email);
       if (!user) {
         const hashedPassword = await hashPassword('oauth-demo-password');
         user = await dbRepository.users.create({
-          email: cleanEmail,
-          name: cleanName,
+          email,
+          name,
           password: hashedPassword,
           planId: 'free',
           credits: 25,
@@ -253,6 +250,109 @@ export const authController = {
     } catch (error: any) {
       console.error('[AuthController.oauthMock]', error);
       return sendError(res, 'OAuth failed: ' + error.message, 500);
+    }
+  },
+
+  async googleAuth(req: Request, res: Response) {
+    try {
+      const { credential, accessToken } = req.body || {};
+      let googleUser: { email: string; name: string; picture?: string } | null = null;
+
+      if (credential) {
+        // Verify Google ID token JWT using Google's official tokeninfo API
+        const tokenRes = await fetch(
+          `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`
+        );
+        if (!tokenRes.ok) {
+          const errData = (await tokenRes.json().catch(() => ({}))) as any;
+          return sendError(res, errData.error_description || 'Invalid Google credential token', 401);
+        }
+        const data = (await tokenRes.json()) as any;
+        if (!data.email) {
+          return sendError(res, 'Google account did not provide an email', 400);
+        }
+        googleUser = {
+          email: data.email.toLowerCase().trim(),
+          name: data.name || data.given_name || data.email.split('@')[0],
+          picture: data.picture || '',
+        };
+      } else if (accessToken) {
+        // Verify Google access token using official userinfo API
+        const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!userRes.ok) {
+          return sendError(res, 'Failed to fetch user profile from Google', 401);
+        }
+        const data = (await userRes.json()) as any;
+        if (!data.email) {
+          return sendError(res, 'Google account did not provide an email', 400);
+        }
+        googleUser = {
+          email: data.email.toLowerCase().trim(),
+          name: data.name || data.given_name || data.email.split('@')[0],
+          picture: data.picture || '',
+        };
+      } else {
+        return sendError(res, 'Missing Google credential or access token', 400);
+      }
+
+      const { email, name, picture } = googleUser;
+      let user = await dbRepository.users.findByEmail(email);
+
+      if (!user) {
+        const randomPassword =
+          typeof crypto !== 'undefined' && 'randomUUID' in crypto
+            ? crypto.randomUUID()
+            : Math.random().toString(36).substring(2);
+        const hashedPassword = await hashPassword(randomPassword);
+        user = await dbRepository.users.create({
+          email,
+          name,
+          password: hashedPassword,
+          planId: 'free',
+          credits: 25,
+          maxCredits: 25,
+          avatarUrl: picture || '',
+        });
+
+        await dbRepository.collections.create(user.id, 'Brand Kit');
+        await dbRepository.collections.create(user.id, 'Campaigns');
+        await dbRepository.collections.create(user.id, 'Motion Studies');
+
+        await dbRepository.usageQuota.log({
+          userId: user.id,
+          label: 'Google Sign-in Starter Allocation',
+          mode: 'topup',
+          delta: 25,
+          balanceAfter: 25,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        });
+      } else if (picture && !user.avatarUrl) {
+        await dbRepository.users.update(user.id, { avatarUrl: picture });
+      }
+
+      const token = signToken({ userId: user.id, email: user.email });
+
+      return sendSuccess(
+        res,
+        {
+          token,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            planId: user.planId,
+            credits: user.credits,
+            maxCredits: user.maxCredits,
+            avatarUrl: user.avatarUrl || picture || '',
+          },
+        },
+        'Authenticated with Google successfully'
+      );
+    } catch (error: any) {
+      console.error('[AuthController.googleAuth]', error);
+      return sendError(res, 'Google authentication failed: ' + error.message, 500);
     }
   },
 };

@@ -42,9 +42,9 @@ export function CreditsView({
       <div className="section-header" style={{ marginBottom: 24 }}>
         <div>
           <div className="section-eyebrow">Credits &amp; Plans</div>
-          <h2 className="section-title">Creativity Without Limits.</h2>
+          <h2 className="section-title">Plans &amp; Usage</h2>
           <p className="section-subtitle">
-            Manage your credit balance, inspect usage history, or switch plans in INR.
+            Manage your balance, inspect history, or switch plans.
           </p>
         </div>
 
@@ -176,9 +176,9 @@ export function SettingsView({
       <div className="section-header" style={{ marginBottom: 24 }}>
         <div>
           <div className="section-eyebrow">Settings</div>
-          <h2 className="section-title">Workspace Preferences</h2>
+          <h2 className="section-title">Account &amp; Preferences</h2>
           <p className="section-subtitle">
-            Manage profile details, API adapter status, and credit state testing.
+            Manage your account email, adapter status, and test credit allocation.
           </p>
         </div>
       </div>
